@@ -86,7 +86,7 @@
         owner: dd-agent
         group: dd-agent
         mode: "0640"
-      no_log: true
+      no_log: false
       notify: Restart datadog-agent
 
     - name: Deploy system-probe.yaml
