@@ -81,7 +81,7 @@
 
     - name: Deploy datadog.yaml
       ansible.builtin.template:
-        src: templates/linux_datadog.j2
+        src: linux_datadog.j2
         dest: /etc/datadog-agent/datadog.yaml
         owner: dd-agent
         group: dd-agent
@@ -91,7 +91,7 @@
 
     - name: Deploy system-probe.yaml
       ansible.builtin.template:
-        src: templates/system_probe.j2
+        src: system_probe.j2
         dest: /etc/datadog-agent/system-probe.yaml
         owner: root
         group: dd-agent
