@@ -1,11 +1,9 @@
 ---
 - name: Install and configure Datadog on Linux
   hosts: all
-  gather_facts: true
   become: true
   vars_files:
     - vars/datadog.yaml
-    - vars/credentials.yaml
 
   tasks:
     - name: Ensure gnupg is installed on RedHat
