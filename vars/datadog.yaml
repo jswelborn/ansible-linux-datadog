@@ -1,0 +1,9 @@
+datadog_agent_major_version: 7
+datadog_package_name: "datadog-agent"
+datadog_hostname_fqdn: false
+datadog_logs_enabled: true
+datadog_process_enabled: true
+datadog_enable_npm: true
+datadog_bind_host: "localhost"
+datadog_tags: []
+datadog_repo_baseurl: "https://yum.datadoghq.com/stable/{{ datadog_agent_major_version }}/$basearch/"
