@@ -1,0 +1,21 @@
+---
+- name: Check Datadog Agent service
+  hosts: all
+  gather_facts: false
+
+  vars:
+    service_name: datadog-agent.service
+
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Fail if Datadog Agent is missing
+      ansible.builtin.fail:
+        msg: "Datadog Agent service is missing"
+      when: service_name not in ansible_facts.services
+
+    - name: Fail if Datadog Agent is not running
+      ansible.builtin.fail:
+        msg: "Datadog Agent service exists but is not running"
+      when: ansible_facts.services[service_name].state != "running"
