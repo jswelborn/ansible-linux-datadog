@@ -1,6 +1,7 @@
 ---
-- name: Check Datadog Agent service
+- name: Check and remediate Datadog Agent service
   hosts: all
+  become: true
   gather_facts: false
 
   vars:
@@ -10,12 +11,26 @@
     - name: Gather service facts
       ansible.builtin.service_facts:
 
-    - name: Fail if Datadog Agent is missing
+    - name: Fail if Datadog Agent service is missing
       ansible.builtin.fail:
         msg: "Datadog Agent service is missing"
       when: service_name not in ansible_facts.services
 
-    - name: Fail if Datadog Agent is not running
+    - name: Start and enable Datadog Agent when it is stopped
+      ansible.builtin.systemd_service:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true
+      when:
+        - service_name in ansible_facts.services
+        - ansible_facts.services[service_name].state != "running"
+
+    - name: Refresh service facts after remediation
+      ansible.builtin.service_facts:
+
+    - name: Fail if Datadog Agent is still not running
       ansible.builtin.fail:
-        msg: "Datadog Agent service exists but is not running"
-      when: ansible_facts.services[service_name].state != "running"
+        msg: "Datadog Agent service exists but could not be started"
+      when:
+        - service_name in ansible_facts.services
+        - ansible_facts.services[service_name].state != "running"
