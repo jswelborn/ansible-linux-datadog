@@ -2,6 +2,7 @@
 - name: Install and configure Datadog on Linux
   hosts: all
   become: true
+  gather_facts: true
 
   vars_files:
     - vars/datadog.yaml
