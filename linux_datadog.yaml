@@ -2,6 +2,7 @@
 - name: Install and configure Datadog on Linux
   hosts: all
   become: true
+
   vars_files:
     - vars/datadog.yaml
     - vars/credentials.yaml
@@ -60,14 +61,20 @@
 
     - name: Create Datadog apt keyring on Debian
       ansible.builtin.command:
-        cmd: gpg --dearmor -o /usr/share/keyrings/datadog-archive-keyring.gpg /tmp/datadog-apt-key.asc
+        cmd: >-
+          gpg --dearmor
+          -o /usr/share/keyrings/datadog-archive-keyring.gpg
+          /tmp/datadog-apt-key.asc
       args:
         creates: /usr/share/keyrings/datadog-archive-keyring.gpg
       when: ansible_os_family == "Debian"
 
     - name: Configure Datadog apt repository on Debian
       ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com stable {{ datadog_agent_major_version }}"
+        repo: >-
+          deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg]
+          https://apt.datadoghq.com stable
+          {{ datadog_agent_major_version }}
         filename: datadog
         state: present
       when: ansible_os_family == "Debian"
@@ -127,8 +134,16 @@
         state: started
       failed_when: false
 
+    - name: Apply pending Datadog configuration handlers
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for Datadog agent to stabilize
+      ansible.builtin.pause:
+        seconds: 5
+
     - name: Verify Datadog agent is active
-      ansible.builtin.command: systemctl is-active datadog-agent
+      ansible.builtin.command:
+        cmd: systemctl is-active datadog-agent
       register: datadog_agent_status
       changed_when: false
       failed_when: datadog_agent_status.stdout | trim != "active"
@@ -136,6 +151,94 @@
     - name: Show Datadog agent status
       ansible.builtin.debug:
         msg: "datadog-agent is {{ datadog_agent_status.stdout | trim }}"
+
+    # Bootstrap audit
+
+    - name: Refresh installed package facts for audit
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Refresh service facts for audit
+      ansible.builtin.service_facts:
+
+    - name: Ensure bootstrap asset audit directory exists
+      ansible.builtin.file:
+        path: /etc/hts/bootstrap/assets
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Build Datadog bootstrap audit data
+      ansible.builtin.set_fact:
+        datadog_bootstrap_audit:
+          asset: datadog
+          status: successful
+          package: "{{ datadog_package_name }}"
+          version: >-
+            {{
+              (
+                ansible_facts.packages[datadog_package_name]
+                | first
+              ).version
+              if datadog_package_name in ansible_facts.packages
+              else 'not installed'
+            }}
+          service: datadog-agent.service
+          service_state: >-
+            {{
+              ansible_facts.services['datadog-agent.service'].state
+              if 'datadog-agent.service' in ansible_facts.services
+              else 'not found'
+            }}
+          service_status: "{{ datadog_agent_status.stdout | trim }}"
+          job_template: >-
+            {{
+              awx_job_template_name
+              | default(
+                  tower_job_template_name
+                  | default('unknown')
+                )
+            }}
+          job_id: >-
+            {{
+              awx_job_id
+              | default(
+                  tower_job_id
+                  | default('unknown')
+                )
+            }}
+          workflow_job_id: >-
+            {{
+              awx_workflow_job_id
+              | default(
+                  tower_workflow_job_id
+                  | default('unknown')
+                )
+            }}
+          project_revision: >-
+            {{
+              awx_project_revision
+              | default(
+                  tower_project_revision
+                  | default('unknown')
+                )
+            }}
+          inventory_hostname: "{{ inventory_hostname }}"
+          completed: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+
+    - name: Record Datadog bootstrap asset
+      ansible.builtin.copy:
+        dest: /etc/hts/bootstrap/assets/datadog.json
+        content: "{{ datadog_bootstrap_audit | ansible.builtin.to_nice_json }}\n"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Validate Datadog bootstrap audit JSON
+      ansible.builtin.command:
+        cmd: python3 -m json.tool /etc/hts/bootstrap/assets/datadog.json
+      changed_when: false
 
   handlers:
     - name: Restart datadog-agent
